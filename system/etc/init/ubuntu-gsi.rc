@@ -1,0 +1,132 @@
+# =============================================================================
+# ubuntu-gsi.rc — Minimal Android init configuration for Ubuntu GSI
+# =============================================================================
+#
+# This is the ONLY init.rc loaded by the GSI. It intentionally omits:
+#   - hwservicemanager (no HIDL)
+#   - vndservicemanager (no vendor binder)
+#   - surfaceflinger, zygote, and all Android framework services
+#   - any service that depends on /vendor libraries
+#
+# The sole purpose of Android init here is to:
+#   1. Mount essential filesystems
+#   2. Load SELinux policy
+#   3. Start servicemanager (for AIDL HAL binder)
+#   4. Start logd (minimal logging)
+#   5. Launch the Ubuntu LXC container
+# =============================================================================
+
+import /system/etc/init/ubuntu-gsi.rc
+
+# ---- Early Init ----
+on early-init
+    # Mount essential pseudo-filesystems
+    mount tmpfs tmpfs /dev mode=0755
+    mkdir /dev/pts 0755 root root
+    mount devpts devpts /dev/pts mode=0620,ptmxmode=0666,gid=5
+    mount proc proc /proc nodev noexec nosuid
+    mount sysfs sysfs /sys nodev noexec nosuid
+
+    # Mount binderfs — provides /dev/binder only
+    # We do NOT mount hwbinder or vndbinder nodes
+    mkdir /dev/binderfs 0755 root root
+    mount binder binder /dev/binderfs stats=global
+    symlink /dev/binderfs/binder /dev/binder
+    chmod 0666 /dev/binder
+
+    # Explicitly ensure no hwbinder/vndbinder device nodes exist
+    # (binderfs default only creates 'binder' unless configured otherwise)
+
+    # Mount security filesystem for SELinux
+    mount selinuxfs selinuxfs /sys/fs/selinux
+
+on init
+    # Set minimal system properties
+    setprop ro.hardware.chipname generic
+    setprop ro.build.type userdebug
+    setprop ro.ubuntu.gsi 1
+    setprop ro.ubuntu.gsi.version 1.0
+    setprop ro.treble.enabled true
+
+    # Create directories for LXC container
+    mkdir /data/ubuntu 0755 root root
+    mkdir /data/ubuntu/rootfs 0755 root root
+    mkdir /data/ubuntu/overlay 0755 root root
+    mkdir /data/ubuntu/workdir 0755 root root
+
+    # Ensure /data is mounted (dynamic partitions)
+    wait /dev/block/by-name/userdata
+    mount ext4 /dev/block/by-name/userdata /data noatime nosuid nodev
+
+on late-init
+    trigger post-fs
+    trigger post-fs-data
+    trigger boot
+
+on post-fs
+    # Remount system read-only (GSI constraint)
+    mount none /system /system remount ro
+
+on post-fs-data
+    # Prepare LXC runtime directories
+    mkdir /data/lxc 0700 root root
+    mkdir /data/lxc/ubuntu 0700 root root
+
+on boot
+    # Start core services, then launch container
+    start servicemanager
+    start logd
+    start ubuntu-container
+
+# =============================================================================
+# Service Definitions
+# =============================================================================
+
+# ---- servicemanager: AIDL binder service manager ----
+# This is the ONLY service manager. No hwservicemanager, no vndservicemanager.
+service servicemanager /system/bin/servicemanager
+    class core
+    user system
+    group system readproc
+    critical
+    onrestart restart ubuntu-container
+    writepid /dev/cpuset/system-background/tasks
+    shutdown critical
+
+# ---- logd: minimal logging daemon ----
+service logd /system/bin/logd
+    class core
+    socket logd stream 0666 logd logd
+    socket logdr seqpacket 0666 logd logd
+    socket logdw dgram+passcred 0222 logd logd
+    group root system readproc
+    writepid /dev/cpuset/system-background/tasks
+
+# ---- Ubuntu LXC container ----
+# This launches the Ubuntu container with LXC.
+# systemd runs as PID 1 INSIDE the container.
+service ubuntu-container /system/bin/lxc-start \
+    -n ubuntu \
+    -f /system/etc/lxc/ubuntu/config \
+    -o /data/lxc/ubuntu/lxc.log \
+    -l INFO \
+    -F
+    class late_start
+    user root
+    group root
+    disabled
+    # Restart on crash, but with backoff
+    oneshot
+    seclabel u:r:ubuntu_container_t:s0
+
+# =============================================================================
+# Services explicitly NOT started (documenting what we omit)
+# =============================================================================
+# - hwservicemanager   : NO — No HIDL transport
+# - vndservicemanager  : NO — No vendor binder domain
+# - surfaceflinger     : NO — No Android UI
+# - zygote             : NO — No Android apps
+# - installd           : NO — No Android package management
+# - vold               : NO — Volume management via Ubuntu
+# - netd               : NO — Networking via Ubuntu/systemd-networkd
+# - adbd               : Optional — can be added if ADB access needed

@@ -1,0 +1,197 @@
+; =============================================================================
+; ubuntu_gsi.cil — SELinux Policy for Ubuntu GSI Container
+; =============================================================================
+;
+; CIL (Common Intermediate Language) format — the modern Android SELinux format.
+;
+; This policy defines:
+;   1. ubuntu_container_t — domain for all processes inside the LXC container
+;   2. Binder access rules — allow only servicemanager and AIDL HAL domains
+;   3. Filesystem restrictions — deny /vendor, /odm, /product
+;   4. Device restrictions — allow only /dev/binder and safe devices
+;   5. Capability restrictions — deny sys_module, sys_admin
+; =============================================================================
+
+; ---- Type Declarations ----
+
+(type ubuntu_container_t)
+(type ubuntu_container_exec_t)
+(type ubuntu_container_data_t)
+(type ubuntu_binder_bridge_t)
+
+; Role assignments
+(roletype object_r ubuntu_container_t)
+(roletype object_r ubuntu_container_exec_t)
+(roletype object_r ubuntu_container_data_t)
+(roletype object_r ubuntu_binder_bridge_t)
+(roletype system_r ubuntu_container_t)
+(roletype system_r ubuntu_binder_bridge_t)
+
+; ---- Type Attributes ----
+
+; Mark as a domain (can be assigned to processes)
+(typeattributeset domain (ubuntu_container_t))
+(typeattributeset domain (ubuntu_binder_bridge_t))
+
+; ---- Transition Rules ----
+
+; When init executes the LXC binary, transition to ubuntu_container_t
+(typetransition init_t ubuntu_container_exec_t process ubuntu_container_t)
+
+; The binder bridge daemon runs in its own sub-domain
+(typetransition ubuntu_container_t ubuntu_container_exec_t process ubuntu_binder_bridge_t)
+
+; ---- File Context Declarations ----
+
+; /data/ubuntu is labeled ubuntu_container_data_t
+(filecon "/data/ubuntu(/.*)?" any (system_u object_r ubuntu_container_data_t ((s0) (s0))))
+(filecon "/system/bin/lxc-start" file (system_u object_r ubuntu_container_exec_t ((s0) (s0))))
+(filecon "/system/bin/lxc-attach" file (system_u object_r ubuntu_container_exec_t ((s0) (s0))))
+
+; =============================================================================
+; BINDER ACCESS RULES
+; =============================================================================
+
+; Allow ubuntu_container_t to use the binder device
+(allow ubuntu_container_t binder_device (chr_file (ioctl open read write)))
+
+; Allow binder IPC with servicemanager only
+(allow ubuntu_container_t servicemanager (binder (call transfer)))
+(allow servicemanager ubuntu_container_t (binder (call transfer)))
+
+; Allow binder bridge daemon full binder access
+(allow ubuntu_binder_bridge_t binder_device (chr_file (ioctl open read write)))
+(allow ubuntu_binder_bridge_t servicemanager (binder (call transfer)))
+(allow servicemanager ubuntu_binder_bridge_t (binder (call transfer)))
+
+; Allow binder IPC with stable AIDL HAL services
+; These are lazy/optional — the container gracefully handles their absence
+(allow ubuntu_container_t hal_power_service (binder (call transfer)))
+(allow ubuntu_container_t hal_sensors_service (binder (call transfer)))
+(allow ubuntu_container_t hal_light_service (binder (call transfer)))
+(allow ubuntu_container_t hal_vibrator_service (binder (call transfer)))
+(allow ubuntu_container_t hal_wifi_service (binder (call transfer)))
+(allow ubuntu_container_t hal_bluetooth_service (binder (call transfer)))
+(allow ubuntu_container_t hal_audio_service (binder (call transfer)))
+(allow ubuntu_container_t hal_camera_service (binder (call transfer)))
+(allow ubuntu_container_t hal_graphics_allocator_service (binder (call transfer)))
+(allow ubuntu_container_t hal_graphics_composer_service (binder (call transfer)))
+
+; ---- DENY: HIDL / hwbinder services ----
+; These neverallow rules prevent any HIDL-based communication
+(neverallow ubuntu_container_t hwservice_manager_type (binder (call transfer)))
+(neverallow ubuntu_container_t hwservicemanager (binder (call transfer)))
+(neverallow ubuntu_container_t vendor_binder_device (chr_file (ioctl open read write)))
+(neverallow ubuntu_container_t hw_binder_device (chr_file (ioctl open read write)))
+
+; =============================================================================
+; FILESYSTEM ACCESS RULES
+; =============================================================================
+
+; Allow read/write to container data directory
+(allow ubuntu_container_t ubuntu_container_data_t (dir (read write open search add_name remove_name create getattr setattr rmdir)))
+(allow ubuntu_container_t ubuntu_container_data_t (file (read write open create getattr setattr unlink rename append lock ioctl)))
+(allow ubuntu_container_t ubuntu_container_data_t (lnk_file (read write create getattr unlink)))
+
+; Allow read access to /system (GSI — read-only)
+(allow ubuntu_container_t system_file (dir (read open search getattr)))
+(allow ubuntu_container_t system_file (file (read open getattr)))
+
+; ---- DENY: Vendor partition access ----
+(neverallow ubuntu_container_t vendor_file (dir (read write open search create getattr setattr)))
+(neverallow ubuntu_container_t vendor_file (file (read write open create getattr setattr execute)))
+
+; ---- DENY: ODM partition access ----
+(neverallow ubuntu_container_t odm_file (dir (read write open search create getattr setattr)))
+(neverallow ubuntu_container_t odm_file (file (read write open create getattr setattr execute)))
+
+; ---- DENY: Product partition access ----
+(neverallow ubuntu_container_t product_file (dir (read write open search create getattr setattr)))
+(neverallow ubuntu_container_t product_file (file (read write open create getattr setattr execute)))
+
+; =============================================================================
+; DEVICE ACCESS RULES
+; =============================================================================
+
+; Allow controlled device access
+(allow ubuntu_container_t null_device (chr_file (read write open getattr)))
+(allow ubuntu_container_t zero_device (chr_file (read write open getattr)))
+(allow ubuntu_container_t random_device (chr_file (read open getattr)))
+(allow ubuntu_container_t urandom_device (chr_file (read open getattr)))
+(allow ubuntu_container_t devpts (chr_file (read write open getattr ioctl)))
+
+; ---- DENY: All other device nodes ----
+(neverallow ubuntu_container_t block_device (blk_file (read write open ioctl)))
+(neverallow ubuntu_container_t device (chr_file (read write open ioctl)))
+
+; =============================================================================
+; CAPABILITY RESTRICTIONS
+; =============================================================================
+
+; Allow basic capabilities needed for container operation
+(allow ubuntu_container_t self (capability (chown dac_override fowner fsetid kill
+    setgid setuid setpcap net_bind_service net_admin sys_chroot sys_nice
+    sys_resource audit_write setfcap ipc_lock ipc_owner)))
+
+; ---- DENY: Dangerous capabilities ----
+(neverallow ubuntu_container_t self (capability (sys_admin sys_module sys_rawio
+    net_raw sys_boot sys_ptrace mknod)))
+
+; Deny capability2 (extended capabilities)
+(neverallow ubuntu_container_t self (capability2 (syslog mac_admin mac_override)))
+
+; =============================================================================
+; PROCESS RESTRICTIONS
+; =============================================================================
+
+; Allow process management within the container
+(allow ubuntu_container_t self (process (fork sigchld sigkill signal getsched
+    setsched getpgid setpgid getcap setcap getattr setrlimit)))
+
+; Allow the container to execute its own binaries
+(allow ubuntu_container_t ubuntu_container_data_t (file (execute execute_no_trans)))
+
+; ---- DENY: Executing vendor libraries ----
+; No direct vendor library linking
+(neverallow ubuntu_container_t vendor_file (file (execute execute_no_trans)))
+
+; =============================================================================
+; NETWORK RESTRICTIONS
+; =============================================================================
+
+; Allow container networking (veth interface)
+(allow ubuntu_container_t self (tcp_socket (create connect accept bind listen
+    read write getattr setattr ioctl shutdown getopt setopt)))
+(allow ubuntu_container_t self (udp_socket (create connect bind read write
+    getattr setattr ioctl shutdown getopt setopt)))
+(allow ubuntu_container_t self (unix_stream_socket (create connect accept bind
+    listen read write getattr setattr ioctl shutdown getopt setopt)))
+(allow ubuntu_container_t self (unix_dgram_socket (create connect bind read
+    write getattr setattr ioctl shutdown getopt setopt)))
+
+; ---- DENY: Raw network sockets ----
+(neverallow ubuntu_container_t self (rawip_socket (create read write ioctl)))
+(neverallow ubuntu_container_t self (packet_socket (create read write ioctl)))
+
+; =============================================================================
+; PROC / SYS ACCESS
+; =============================================================================
+
+; Allow reading /proc (filtered by namespace)
+(allow ubuntu_container_t proc_type (dir (read open search getattr)))
+(allow ubuntu_container_t proc_type (file (read open getattr)))
+
+; Allow reading /sys (mounted read-only)
+(allow ubuntu_container_t sysfs_type (dir (read open search getattr)))
+(allow ubuntu_container_t sysfs_type (file (read open getattr)))
+
+; ---- DENY: Writing to /proc or /sys ----
+(neverallow ubuntu_container_t proc_type (file (write append)))
+(neverallow ubuntu_container_t sysfs_type (file (write append)))
+
+; =============================================================================
+; AUDIT RULES
+; =============================================================================
+
+; Log all denied operations for debugging
+(auditallow ubuntu_container_t binder_device (chr_file (ioctl)))
