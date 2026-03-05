@@ -45,10 +45,11 @@ This repository provides the ultimate, production-grade logic for deploying **Ub
 ## 🛠️ Build & Installation
 
 1. **Prepare Environment:**
-   Ensure you have `mksquashfs`, `make_ext4fs`, and `jq` installed.
+   Ensure you have `mksquashfs`, `e2fsprogs` (for `mkfs.ext4`), and `jq` installed.
+   Place your Ubuntu Touch rootfs tarball named `ubuntu-touch-rootfs.tar.gz` in the repository root.
    ```bash
+   # Alternatively, prepare the directory manually
    mkdir -p out/ubuntu-rootfs
-   # Extract your preferred Ubuntu Touch rootfs to out/ubuntu-rootfs/
    ```
 
 2. **Execute Master Build:**

@@ -27,7 +27,14 @@ cp -r "$WORKSPACE_DIR/init" "$BOOTSTRAP_DIR/"
 
 # The only file on the root of the Ext4 is our Linux Pivot!
 echo "[$(date -Iseconds)] [GSI Packager] Generating raw Ext4 Block..."
-make_ext4fs -l 512M -s -a system "$OUT_IMG" "$BOOTSTRAP_DIR"
+
+# Replacement for: make_ext4fs -l 512M -s -a system "$OUT_IMG" "$BOOTSTRAP_DIR"
+# Step 1: Create a 512MB zero-filled file
+dd if=/dev/zero of="$OUT_IMG" bs=1M count=512
+
+# Step 2: Format as ext4 with label 'system' and populate with bootstrap contents
+# Sample command: mkfs.ext4 -L system out/system.img -d out/gsi_sys
+mkfs.ext4 -L system "$OUT_IMG" -d "$BOOTSTRAP_DIR"
 
 echo "[$(date -Iseconds)] [GSI Packager] SUCCESS: Flashable Final Master Array built cleanly at $OUT_IMG!"
 echo "Flash via: fastboot flash system out/system.img"
