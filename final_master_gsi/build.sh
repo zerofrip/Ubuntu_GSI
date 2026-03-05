@@ -28,7 +28,7 @@ elif [ ! -d "$ROOTFS_OUT" ] || [ -z "$(ls -A "$ROOTFS_OUT")" ]; then
     echo "[$(date -Iseconds)] [Orchestrator] RootFS not found. Attempting automated download..."
     
     # Default UBports Focal arm64 rootfs (Change if needed)
-    DOWNLOAD_URL="https://ci.ubports.com/job/ubuntu-touch-rootfs/job/main/lastStableBuild/artifact/ubuntu-touch-android9plus-rootfs-armhf.tar.gz"
+    DOWNLOAD_URL="https://ci.ubports.com/job/ubuntu-touch-rootfs/job/main/lastStableBuild/artifact/ubuntu-touch-android9plus-rootfs-arm64.tar.gz"
     
     if command -v wget >/dev/null 2>&1; then
         wget -O "$ROOTFS_TARBALL" "$DOWNLOAD_URL" || { echo "[$(date -Iseconds)] [Orchestrator] FATAL: Download failed via wget!"; exit 1; }
