@@ -1,37 +1,50 @@
 #!/bin/bash
 # =============================================================================
-# scripts/detect-gpu.sh (Final Master Hardware Discovery Matrix)
-# =============================================================================
-# Actively parses proprietary Android API structures early in the boot loop 
-# isolating Wayland targets. Emits `MODE=...` to `/tmp/gpu_state`.
+# scripts/detect-gpu.sh (Final Master GPU Discovery with OTA Fast-Boot Caching)
 # =============================================================================
 
-echo "[Master Auto-Discover] Scanning Proprietary Vendor Hardware Pipelines..."
-
-VENDOR_LIB="/vendor/lib64"
+LOG_FILE="/data/uhl_overlay/gpu_stage.log"
 STATE_FILE="/tmp/gpu_state"
+CACHE_FILE="/data/uhl_overlay/gpu_success.cache"
 
-# Initialize safety default
-echo "MODE=UNKNOWN" > "$STATE_FILE"
+mkdir -p /data/uhl_overlay
+touch "$LOG_FILE"
 
-# 1. Vulkan Native Hook (Zero-Copy Zink Translation preferred)
-if ls ${VENDOR_LIB}/hw/vulkan.*.so 1> /dev/null 2>&1; then
-    echo "[Master Auto-Discover] Native Vulkan API validated (Primary Route)."
-    echo "MODE=VULKAN_ZINK_READY" > "$STATE_FILE"
+# =============================================================================
+# Dynamic Cache Bypassing Phase
+# =============================================================================
+if [ -f "$CACHE_FILE" ]; then
+    echo "[$(date -Iseconds)] [Scanner] SUCCESS: Valid GPU Cache previously created! Bypassing rigorous block iteration." >> "$LOG_FILE"
+    cp "$CACHE_FILE" "$STATE_FILE"
     exit 0
 fi
 
-# 2. Proprietary EGL (Libhybris swap buffer wrapping preferred) 
-if ls ${VENDOR_LIB}/egl/eglSubDriverAdreno.so 1> /dev/null 2>&1 || \
-   ls ${VENDOR_LIB}/egl/libGLES_mali.so 1> /dev/null 2>&1 || \
-   ls ${VENDOR_LIB}/egl/libGLES_PowerVR*.so 1> /dev/null 2>&1; then
-   
-   echo "[Master Auto-Discover] Dedicated Vendor EGL mappings validated."
-   echo "MODE=EGL_HYBRIS_READY" > "$STATE_FILE"
-   exit 0
-fi
+echo "[$(date -Iseconds)] [Scanner] Cache missing. Executing initial intensive discovery scan natively..." >> "$LOG_FILE"
+echo "" > "$STATE_FILE"
 
-# 3. Last Resort Fallback (CPU Rendering)
-echo "[Master Auto-Discover] WARNING: Accelerated Metal undetected. Enforcing Software Rasterizer."
-echo "MODE=CPU_LLVMPIPE_REQUIRED" > "$STATE_FILE"
-exit 0
+export LD_LIBRARY_PATH="/system/lib64:/vendor/lib64"
+
+check_vulkan_zink() {
+    if ls /vendor/lib64/hw/vulkan.*.so 1> /dev/null 2>&1; then
+        echo "MODE=VULKAN_ZINK_READY" > "$STATE_FILE"
+        echo "[$(date -Iseconds)] [Scanner] Evaluation: Vulkan OEM Driver present natively. Triggering Zink pipeline routing." >> "$LOG_FILE"
+        return 0
+    fi
+    return 1
+}
+
+check_egl_hybris() {
+    if ls /vendor/lib64/egl/libGLES_*.so 1> /dev/null 2>&1 || ls /vendor/lib64/libEGL_*.so 1> /dev/null 2>&1; then
+        echo "MODE=EGL_HYBRIS_READY" > "$STATE_FILE"
+        echo "[$(date -Iseconds)] [Scanner] Evaluation: Fallback OEM EGL Driver present. Triggering Libhybris routing." >> "$LOG_FILE"
+        return 0
+    fi
+    return 1
+}
+
+if ! check_vulkan_zink; then
+    if ! check_egl_hybris; then
+        echo "MODE=UNKNOWN" > "$STATE_FILE"
+        echo "[$(date -Iseconds)] [Scanner] FATAL: Universal Graphics missing! Enforcing LLVMPipe explicit routing natively." >> "$LOG_FILE"
+    fi
+fi

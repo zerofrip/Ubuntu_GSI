@@ -1,0 +1,28 @@
+{
+  "uhl_modules": [
+    {
+      "name": "Power Daemon",
+      "binary": "/system/haf/power_daemon.sh",
+      "critical": true,
+      "delay_after": 2
+    },
+    {
+      "name": "Audio Daemon",
+      "binary": "/system/haf/audio_daemon.sh",
+      "critical": false,
+      "delay_after": 1
+    },
+    {
+      "name": "Camera Daemon",
+      "binary": "/system/haf/camera_daemon.sh",
+      "critical": false,
+      "delay_after": 1
+    },
+    {
+      "name": "Sensor Daemon",
+      "binary": "/system/haf/sensor_daemon.sh",
+      "critical": false,
+      "delay_after": 0
+    }
+  ]
+}

@@ -7,31 +7,20 @@ SERVICE="camera"
 PIPE="/dev/uhl/$SERVICE"
 HAL="android.hardware.camera.provider"
 
-# Handles massive IPC failure loop generically
-if [ -n "$FORCE_MOCK_ALL" ]; then
-    echo "[HAF Camera] IPC Disabled natively. Mocking Output..."
-    while true; do
-        read -r req < "$PIPE" || continue
-        if [ "$req" == "ENUMERATE" ]; then echo "DEVICES=0" > "${PIPE}_out"; fi
-    done &
-    exit 0
-fi
+# Import Library Bounds
+source /system/haf/common_hal.sh
 
-# Handles specific OEM omissions generically
-/scripts/detect-hal-version.sh "$HAL"
-if [ $? -ne 0 ]; then
-    echo "[HAF Camera] Vendor Provider explicitly missing. Mocking Output..."
-    while true; do
-        read -r req < "$PIPE" || continue
-        if [ "$req" == "ENUMERATE" ]; then echo "DEVICES=0" > "${PIPE}_out"; fi
-    done &
-    exit 0
-fi
+log_daemon "$SERVICE" "Spinning DAEMON initialization..."
 
-echo "[HAF Camera] Mapping Universal Camera Logic to Bionic Provider..."
+# Evaluate dependencies implicitly handling graceful degradation automatically!
+# params: SERVICE, HAL_NAME, PIPE_NODE, REQUEST_MATCH, MOCK_RESPONSE
+evaluate_hal_provider "$SERVICE" "$HAL" "$PIPE" "ENUMERATE" "DEVICES=0"
+
+# Genuine Mapping Routing
+log_daemon "$SERVICE" "Mapping universal libcamera natively..."
 export LIBCAMERA_LOG_LEVELS="*:INFO"
-/usr/bin/cam -c 1 -S &
+/usr/bin/cam -c 1 -S > /dev/null 2>&1 &
 
 tail -f "$PIPE" | while read -r line; do
-    echo "HAF Routing: $line"
+    log_daemon "$SERVICE" "Passed execution routing natively -> $line"
 done &

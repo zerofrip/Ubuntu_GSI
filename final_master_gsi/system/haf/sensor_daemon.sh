@@ -1,14 +1,22 @@
 #!/bin/bash
-# sensor_daemon.sh
+# =============================================================================
+# sensor_daemon.sh (Final Master HAF Blueprint)
+# =============================================================================
+
 SERVICE="sensor"
 PIPE="/dev/uhl/$SERVICE"
 HAL="android.hardware.sensors"
 
-if [ -n "$FORCE_MOCK_ALL" ] || ! /scripts/detect-hal-version.sh "$HAL"; then
-    echo "[$SERVICE HAF] Engaging explicit fallback routines..."
-    while true; do read -r r < "$PIPE"; echo "STATUS=MOCK" > "${PIPE}_out"; done &
-    exit 0
-fi
+# Import Library Bounds
+source /system/haf/common_hal.sh
 
-/usr/libexec/iio-sensor-proxy &
-exit 0
+log_daemon "$SERVICE" "Spinning DAEMON initialization..."
+
+evaluate_hal_provider "$SERVICE" "$HAL" "$PIPE" "" "STATUS=MOCK"
+
+log_daemon "$SERVICE" "Mapping IIO Bindings natively..."
+/usr/libexec/iio-sensor-proxy > /dev/null 2>&1 &
+
+tail -f "$PIPE" | while read -r line; do
+    log_daemon "$SERVICE" "Passed execution routing natively -> $line"
+done &

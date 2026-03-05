@@ -1,13 +1,19 @@
 #!/bin/bash
 # =============================================================================
-# gpu-bridge.sh (Final Master GPU Translation Matrix & Watchdog)
+# gpu-bridge.sh (Final Master GPU Translation Matrix & Watchdog Limits & Cache)
 # =============================================================================
-# Evaluates Vulkan/EGL routing precisely suppressing hardware failures
-# if a Vendor ships corrupt implementations preventing the GNOME/Lomiri GUI
-# from hard-crashing natively.
+# Evaluates Vulkan/EGL routing precisely suppressing hardware failures.
+# Contains a strict 5-second Watchdog trap that logs compositor deaths.
+# Generates a `gpu_success.cache` after 5 seconds speeding up subsequent boots.
 # =============================================================================
 
-echo "[Master GPU Matrix] Evaluating Hardware State..."
+LOG_FILE="/data/uhl_overlay/gpu_stage.log"
+STATS_FILE="/data/uhl_overlay/gpu_stats.log"
+CACHE_FILE="/data/uhl_overlay/gpu_success.cache"
+mkdir -p /data/uhl_overlay
+touch "$LOG_FILE" "$STATS_FILE"
+
+echo "[$(date -Iseconds)] [Master GPU Matrix] Evaluating Hardware State..." >> "$LOG_FILE"
 
 STATE_FILE="/tmp/gpu_state"
 source "$STATE_FILE" 2>/dev/null || MODE="UNKNOWN"
@@ -15,21 +21,18 @@ source "$STATE_FILE" 2>/dev/null || MODE="UNKNOWN"
 export LD_LIBRARY_PATH="/system/lib64:/vendor/lib64"
 
 apply_vulkan_zink() {
-    echo ">> Selecting VULKAN ZINK (Zero-Copy) Backend..."
     export MESA_LOADER_DRIVER_OVERRIDE=zink
     export GALLIUM_DRIVER=zink
     export MIR_SERVER_GRAPHICS_PLATFORM=mesa
 }
 
 apply_egl_hybris() {
-    echo ">> Selecting Vendor EGL LIBHYBRIS Backend..."
     export EGL_PLATFORM=hybris
     export MIR_SERVER_GRAPHICS_PLATFORM=android
     export LOMIRI_FORCE_FALLBACK_GLES=0
 }
 
 apply_cpu_llvmpipe() {
-    echo ">> Selecting CPU LLVMPIPE Software Rendering Array..."
     export LIBGL_ALWAYS_SOFTWARE=1
     export GALLIUM_DRIVER=llvmpipe
     export MIR_SERVER_GRAPHICS_PLATFORM=mesa
@@ -41,20 +44,48 @@ case "$MODE" in
     *) apply_cpu_llvmpipe ;;
 esac
 
-echo "[Master GPU Matrix] Spinning up Compositor..."
+# =============================================================================
+# The Ultimate GUI Watchdog & Cache Tracking
+# =============================================================================
 
-# The Ultimate GUI Watchdog
-# Forks execution. If Libhybris or Android hardware drivers segfault, `miral-app`
-# dies rapidly. We trap it, flush the hardware flags, and engage LLVMPipe guarantees.
-/usr/bin/miral-app -kiosk "$@" &
-COMP_PID=$!
+MAX_RETRIES=3
+CRASH_COUNT=0
 
-sleep 5
+while [ $CRASH_COUNT -lt $MAX_RETRIES ]; do
+    echo "[$(date -Iseconds)] [Master GPU Matrix] Spinning up Compositor (Attempt $((CRASH_COUNT+1))/$MAX_RETRIES)..." >> "$LOG_FILE"
+    
+    /usr/bin/miral-app -kiosk "$@" &
+    COMP_PID=$!
+    
+    # 5-second critical stabilization window
+    sleep 5
+    
+    if kill -0 $COMP_PID 2>/dev/null; then
+        echo "[$(date -Iseconds)] [Master GPU Matrix] SUCCESS: Hardware Acceleration stabilized after 5 seconds." >> "$LOG_FILE"
+        echo "[$(date -Iseconds)] [GPU Stats] FINAL BOUNDS: Wayland active natively via UID $COMP_PID. Fallbacks triggered: $CRASH_COUNT" >> "$STATS_FILE"
+        
+        if [ "$MODE" != "UNKNOWN" ] && [ ! -f "$CACHE_FILE" ]; then
+            echo "[$(date -Iseconds)] [Master GPU Matrix] Persisting validated Graphics cache ($MODE) locally protecting boots!" >> "$LOG_FILE"
+            echo "MODE=$MODE" > "$CACHE_FILE"
+        fi
 
-if ! kill -0 $COMP_PID 2>/dev/null; then
-    echo "[Master GPU Matrix] FATAL: Hardware Acceleration crashed (Segfault/Signal)! Re-routing to LLVMPipe fallback..."
-    apply_cpu_llvmpipe
-    exec /usr/bin/miral-app -kiosk "$@"
-fi
+        wait $COMP_PID
+        exit 0
+    fi
+    
+    echo "[$(date -Iseconds)] [Master GPU Matrix] FATAL: Hardware Acceleration crashed (miral-app died unexpectedly)!" >> "$LOG_FILE"
+    CRASH_COUNT=$((CRASH_COUNT + 1))
+    
+    # Destroy Corrupt Caches natively!
+    rm -f "$CACHE_FILE"
+    
+    if [ "$MODE" != "UNKNOWN" ]; then
+        echo "[$(date -Iseconds)] [Master GPU Matrix] >> Watchdog Triggered. Emptied caches mapping LLVMPIPE organically..." >> "$LOG_FILE"
+        apply_cpu_llvmpipe
+        MODE="UNKNOWN" 
+    fi
+done
 
-wait $COMP_PID
+echo "[$(date -Iseconds)] [Master GPU Matrix] FATAL LIMIT: Exceeded $MAX_RETRIES continuous composer crashes! Halting execution." >> "$LOG_FILE"
+echo "[$(date -Iseconds)] [GPU Stats] FATAL BOUNDS: Wayland permanently failed bounding $MAX_RETRIES attempts. Display aborted completely." >> "$STATS_FILE"
+exit 1
