@@ -1,133 +1,92 @@
-# Ubuntu GSI — Treble-Compliant Android with Ubuntu Touch LXC Container
+# Ubuntu Touch GSI Final Master Framework
 
-A minimal Android Generic System Image (GSI) that boots Ubuntu Touch (Lomiri) inside an LXC container on arm64 A/B dynamic partition devices, using binder-only AIDL IPC with strong security isolation.
+This repository provides the ultimate, production-grade logic for deploying **Ubuntu Touch (Linux) GSI** implementations on **Android 15-18+** devices. It integrates advanced GPU abstraction, HAL dynamic detection, multi-generation snapshot management, and isolated LXC sandboxing.
 
----
+## 🚀 Key Features
 
-## Architecture
+- **Stepwise GPU Discovery:** Automatic transitioning from Native Vulkan/EGL to libhybris, with a 5-second Watchdog triggering LLVMpipe fallback.
+- **Universal HAL Layer (UHL):** Event-driven, modular daemons using a shared HAL library (`common_hal.sh`) and dynamic JSON manifests.
+- **Multi-Generation Snapshots:** 3+ rotating OverlayFS generations with automated garbage collection and explicit rollback triggers.
+- **LXC Sandbox Isolation:** Dynamic NAT assignment (10.x.3.1), strict BinderFS write-locks, and Seccomp V2 filtering for Waydroid.
+- **OTA Multi-Stage Safety:** Fingerprint-based cache flushing to ensure stability across Android vendor updates.
+- **Automated QA Reporting:** Comprehensive HTML, JSON, and CSV diagnostic reports tracking total subsystem health.
 
-```mermaid
-graph TB
-    subgraph HOST["Android Host (Minimal)"]
-        INIT["Android init (PID 1)"]
-        SM["servicemanager\n(AIDL only)"]
-        LOGD["logd"]
-    end
+## 📂 Repository Structure
 
-    subgraph CONTAINER["Ubuntu Touch LXC Container"]
-        INIT_SHIM["/sbin/init (shim)"]
-        MIR["Mir Compositor"]
-        LOM["Lomiri Desktop UI"]
-        UBUNTU["Ubuntu Touch environment"]
-    end
+### 🛠️ Core Orchestration
+- **`build.sh`**: The master build orchestrator. Sequences `rootfs-builder.sh` and `gsi-pack.sh`.
+- **`scripts/rootfs-builder.sh`**: Compiles the Ubuntu rootfs into a compressed SquashFS block.
+- **`scripts/gsi-pack.sh`**: Generates the final sparse `system.img` for Fastboot flashing.
+- **`scripts/detect-gpu.sh`**: GPU capability discovery and OTA-safe caching.
+- **`scripts/detect-vendor-services.sh`**: Scans Android vendor HALs and generates fingerprint hashes.
 
-    subgraph SECURITY["Security Layers"]
-        NS["Namespaces"]
-        CAPS["Capability Drops"]
-        SC["Seccomp Filter"]
-        SE["SELinux MAC"]
-        CG["cgroup Device ACL"]
-    end
+### 🧩 Subsystems
+- **`/init/`**:
+    - `mount.sh`: Manages OverlayFS pivot_root, snapshot rotation, and fallback recovery.
+- **`/system/gpu-wrapper/`**:
+    - `gpu-bridge.sh`: Manages compositor lifecycle, hardware acceleration, and the LLVMpipe watchdog.
+- **`/system/uhl/`**:
+    - `uhl_manager.sh`: Dynamically boots services based on `module_manifest.json`.
+    - `module_manifest.json`: Configuration manifest for UHL daemons.
+- **`/system/haf/`**:
+    - `common_hal.sh`: Shared library for HAL mocking and retry logic.
+    - `*_daemon.sh`: Modular services for Audio, Camera, Power, Sensors, and Input.
+- **`/waydroid/`**:
+    - `setup_container.sh`: Provisions dynamic LXC networking and IPC sandboxing.
+    - `lxc-seccomp.conf`: Seccomp V2 policy for container confinement.
 
-    HOST ---|"/dev/binder"| CONTAINER
-    HOST ---|"/dev/dri & /dev/input"| CONTAINER
-    SECURITY -.-> CONTAINER
+### 🧪 QA & Diagnostics
+- **`scripts/test-gpu-fallback.sh`**: Simulates GPU compositor crashes.
+- **`scripts/test-hal-mocks.sh`**: Validates Selective HAL mocking logic.
+- **`scripts/test-rollback.sh`**: Tests OverlayFS snapshot recovery.
+- **`scripts/test-waydroid-isolation.sh`**: Verifies LXC network and IPC boundaries.
+- **`scripts/aggregate-logs.sh`**: Compiles all telemetry into `MASTER_QA_REPORT` (HTML/JSON/CSV).
 
-    style HOST fill:#1a1a2e,color:#eee
-    style CONTAINER fill:#16213e,color:#eee
-    style SECURITY fill:#0f3460,color:#eee
-```
+## 🛠️ Build & Installation
 
-### Key Properties
+1. **Prepare Environment:**
+   Ensure you have `mksquashfs`, `e2fsprogs` (for `mkfs.ext4`), and `jq` installed.
+   Place your Ubuntu Touch rootfs tarball named `ubuntu-touch-rootfs.tar.gz` in the repository root.
+   ```bash
+   # Alternatively, prepare the directory manually
+   mkdir -p out/ubuntu-rootfs
+   ```
 
-| Property | Value |
-|----------|-------|
-| IPC | Binder-only (no hwbinder, no HIDL) |
-| HALs | Stable AIDL only, lazy & optional |
-| Host PID 1 | Android init (minimal stub) |
-| Container PID 1 | Custom shell init script |
-| Ubuntu rootfs | `/system/ubuntu-rootfs` (base) + `/data/ubuntu/overlay` |
-| System partition | Read-only, ~4 GB |
-| Vendor partition | Untouched, never mounted in container |
-| Target devices | arm64, A/B, dynamic partitions |
+2. **Execute Master Build:**
+   ```bash
+   ./build.sh
+   ```
 
----
+3. **Deploy to Device:**
+   ```bash
+   # Flash the system image
+   fastboot flash system out/system.img
+   
+   # Push the rootfs block to userdata
+   adb push out/linux_rootfs.squashfs /data/
+   ```
 
-## Repository Structure
+## 📈 QA & Debugging
 
-```
-Ubuntu_GSI/
-├── generate-rootfs.sh                   # Script to bootstrap Ubuntu Touch base
-├── system/                              # System partition contents
-│   ├── ubuntu-rootfs/                   # Generated Ubuntu arm64 OS image
-│   ├── etc/
-│   │   ├── init/ubuntu-gsi.rc          # Minimal Android init config
-│   │   ├── lxc/ubuntu/config           # LXC container configuration
-│   │   ├── selinux/ubuntu_gsi.cil      # SELinux policy (CIL)
-│   │   └── seccomp/ubuntu_container.json  # Seccomp syscall filter
-│   ├── bin/
-│   │   ├── start-ubuntu-container      # Init wrapper to start LXC
-│   │   └── start-lomiri                # Internal script to start UI
-│   └── build.prop                       # Build properties
-├── scripts/
-│   └── setup-ubuntu.sh                  # Ubuntu rootfs bootstrap
-├── third_party/                         # Upstream dependencies (submodules)
-│   ├── aosp_frameworks_native/          # libbinder, servicemanager
-│   ├── aosp_system_core/                # init, logd, logcat, core libs
-│   ├── aosp_system_sepolicy/            # Platform SELinux policy
-│   ├── lxc/                             # LXC container runtime
-│   └── libseccomp/                      # Seccomp helper library
-├── docs/
-│   ├── boot_flow.md                     # Boot sequence documentation
-│   ├── threat_model.md                  # Security threat analysis
-│   ├── selinux_policy.md                # SELinux policy outline
-│   └── system_layout.md                 # Directory layout details
-├── LICENSE                              # Apache License 2.0
-├── NOTICE                               # Third-party attribution notices
-└── .gitmodules                          # Submodule definitions
-```
+All logs are aggregated in `/data/uhl_overlay/`.
 
----
+- **Master Report:** `MASTER_QA_REPORT.html` (Visual summary)
+- **JSON Data:** `MASTER_QA_REPORT.json` (For automated analysis)
+- **Log Targets:**
+    - `gpu_stage.log`: GPU detection and watchdog events.
+    - `snapshot_rotation.log`: Snapshot creation and rotation events.
+    - `hal.log`: Hardware discovery and retry metrics.
+    - `waydroid_container*.log`: Per-container network and IPC maps.
 
-## Quick Start
+## 🔄 Recovery & Rollback
 
-### Prerequisites
-- arm64 device with Treble support + A/B + dynamic partitions
-- Unlocked bootloader
-- ADB and fastboot installed
-- Kernel with: `CONFIG_ANDROID_BINDERFS`, `CONFIG_NAMESPACES`, `CONFIG_OVERLAY_FS`, `CONFIG_SECCOMP_FILTER`, `CONFIG_VETH`
-
-### Clone with Submodules
-
+If the system fails to boot, the framework detects a `rollback` file.
 ```bash
-# Clone repository
-git clone https://github.com/<your-org>/Ubuntu_GSI.git
-cd Ubuntu_GSI
-
-# Initialize small submodules (LXC, libseccomp)
-git submodule update --init third_party/lxc third_party/libseccomp
-
-# Initialize AOSP submodules (large — only if building from source)
-git submodule update --init --depth 1 third_party/aosp_frameworks_native
-git submodule update --init --depth 1 third_party/aosp_system_core
-git submodule update --init --depth 1 third_party/aosp_system_sepolicy
+# Force a rollback to the previous stable snapshot on next boot
+touch /data/uhl_overlay/rollback
 ```
+Snapshots are automatically purged after 3 generations to prevent storage bloat.
 
-### Flash and Boot
-
-```bash
-# 1. Build GSI image (auto-generates rootfs if missing via debootstrap)
-# This will require sudo for rootfs generation
-./build.sh
-
-# 2. Flash GSI system image
-fastboot flash system ubuntu-gsi-arm64.img
-
-# 3. Boot the device (Lomiri will start automatically)
-fastboot reboot
-```
-
----
 
 ## Security Model
 
@@ -288,9 +247,5 @@ Changes persist in the OverlayFS upper layer (`/data/ubuntu/overlay/`). To clean
 
 ---
 
-## License
-
-This project is licensed under the [Apache License 2.0](LICENSE).
-
-Third-party components are licensed under their respective licenses.
-See [NOTICE](NOTICE) for details.
+## 📄 License
+This framework is provided under the Apache License 2.0. See `LICENSE` for details.

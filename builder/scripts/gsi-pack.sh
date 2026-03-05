@@ -7,7 +7,7 @@
 
 set -e
 
-WORKSPACE_DIR="/home/zerof/github/Ubuntu_GSI/final_master_gsi"
+WORKSPACE_DIR="/home/zerof/github/Ubuntu_GSI/builder"
 OUT_IMG="$WORKSPACE_DIR/out/system.img"
 BOOTSTRAP_DIR="$WORKSPACE_DIR/out/gsi_sys"
 

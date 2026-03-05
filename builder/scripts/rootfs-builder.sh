@@ -8,7 +8,7 @@
 
 set -e
 
-WORKSPACE_DIR="/home/zerof/github/Ubuntu_GSI/final_master_gsi"
+WORKSPACE_DIR="/home/zerof/github/Ubuntu_GSI/builder"
 OUTPUT_SQUASHFS="$WORKSPACE_DIR/out/linux_rootfs.squashfs"
 ROOTFS_BASE="$WORKSPACE_DIR/out/ubuntu-rootfs"
 

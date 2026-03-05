@@ -20,3 +20,5 @@ ubuntu-gsi-arm64.img
 # OS
 .DS_Store
 Thumbs.db
+ubuntu-touch-rootfs.tar.gz
+builder/out/
