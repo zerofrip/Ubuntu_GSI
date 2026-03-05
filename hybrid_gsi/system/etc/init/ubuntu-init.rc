@@ -1,0 +1,56 @@
+# =============================================================================
+# ubuntu-init.rc (Hybrid Architecture)
+# =============================================================================
+# Android serves as the host PID 1 system to orchestrate hardware vendor HALs.
+# The `init` binary delegates UI rendering and Wayland mappings natively
+# to the Ubuntu LXC container payload.
+# =============================================================================
+
+import /system/etc/init/ubuntu-init.rc
+
+on early-init
+    # Initialize BinderFS correctly enabling strictly binder proxies
+    mkdir /dev/binderfs 0755 root root
+    mount binder binder /dev/binderfs stats=global
+    symlink /dev/binderfs/binder /dev/binder
+    symlink /dev/binderfs/vndbinder /dev/vndbinder
+    
+    # Establish permissive mappings for container bounds
+    chmod 0666 /dev/binder
+    chmod 0666 /dev/vndbinder
+
+on init
+    # Configure required overlay filesystem capabilities
+    mkdir /overlay 0755 root root
+    mount overlay overlay /overlay
+    
+    # Existent layout definitions targeting container mappings
+    mkdir /ubuntu 0755 root root
+    mkdir /ubuntu/rootfs 0755 root root
+    mkdir /ubuntu/writable 0755 root root
+    mkdir /android 0755 root root
+    mkdir /android/services 0755 root root
+    
+    # Execute native Android services proxy logic (Hardware mapping starts)
+    start servicemanager
+    start hwservicemanager
+    start vndservicemanager
+    
+    # Delegate primary UX processing securely into the container wrapper
+    start ubuntu-container
+
+on post-fs-data
+    # Bind Android vendor HAL libraries specifically to system paths dynamically if required
+    mount none /vendor /android/services/vendor bind
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+
+service ubuntu-container /system/bin/lxc-start -n ubuntu -f /system/etc/lxc/ubuntu.config -F
+    class core
+    user root
+    group root
+    critical
+    # Strict generic SELinux policy mapping containerized abstraction
+    seclabel u:r:ubuntu_container_t:s0

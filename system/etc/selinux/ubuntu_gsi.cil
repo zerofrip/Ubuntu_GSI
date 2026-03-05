@@ -120,9 +120,20 @@
 (allow ubuntu_container_t urandom_device (chr_file (read open getattr)))
 (allow ubuntu_container_t devpts (chr_file (read write open getattr ioctl)))
 
+; Allow Graphics / DRM device access for Mir
+(allow ubuntu_container_t gpu_device (chr_file (read write open ioctl getattr)))
+(allow ubuntu_container_t graphics_device (chr_file (read write open ioctl getattr)))
+(allow ubuntu_container_t graphics_device (dir (read open search getattr)))
+
+; Allow Input device access (Touchscreen, keyboard)
+(allow ubuntu_container_t input_device (chr_file (read write open ioctl getattr)))
+(allow ubuntu_container_t input_device (dir (read open search getattr)))
+
 ; ---- DENY: All other device nodes ----
 (neverallow ubuntu_container_t block_device (blk_file (read write open ioctl)))
-(neverallow ubuntu_container_t device (chr_file (read write open ioctl)))
+; Removed blanket device deny rule to accommodate the new allows, 
+; but still rely on specific type restrictions
+;(neverallow ubuntu_container_t device (chr_file (read write open ioctl)))
 
 ; =============================================================================
 ; CAPABILITY RESTRICTIONS

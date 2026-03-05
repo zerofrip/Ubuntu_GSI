@@ -1,0 +1,23 @@
+[Unit]
+Description=Mir Display Server (Wayland via Libhybris hwcomposer)
+After=hybris.service systemd-udevd.service dbus.service
+Requires=dbus.service hybris.service
+Before=lomiri.service
+
+[Service]
+Type=notify
+User=phablet
+Group=video
+Environment="WAYLAND_DISPLAY=wayland-0"
+Environment="MIR_SERVER_WAYLAND_HOST=wayland-0"
+# Explicitly force Mir to use hwcomposer backend available via libhybris
+Environment="MIR_SERVER_GRAPHICS_PLATFORM=hwcomposer"
+Environment="XDG_RUNTIME_DIR=/run/user/32011"
+ExecStartPre=/bin/mkdir -p /run/user/32011
+ExecStartPre=/bin/chown phablet:phablet /run/user/32011
+ExecStart=/usr/bin/miral-app -kiosk
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,20 @@
+[Unit]
+Description=Lomiri Desktop Shell (Ubuntu Touch UI)
+After=mir.service
+Requires=mir.service
+
+[Service]
+Type=simple
+User=phablet
+Group=video
+Environment="WAYLAND_DISPLAY=wayland-0"
+Environment="QT_QPA_PLATFORM=wayland"
+Environment="XDG_RUNTIME_DIR=/run/user/32011"
+# Required form factor to prompt Lomiri into Mobile UX representation
+Environment="LOMIRI_FORM_FACTOR=phone"
+ExecStart=/usr/bin/lomiri
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,24 @@
+[Unit]
+Description=Mir Wayland to SurfaceFlinger Bridge
+After=binder-proxy.service
+Requires=binder-proxy.service
+Before=lomiri.service
+
+[Service]
+Type=notify
+User=phablet
+Group=video
+# Ensure Mir utilizes the proxy bridge to hit SurfaceFlinger/HWC2
+Environment="MIR_SERVER_GRAPHICS_PLATFORM=hwcomposer"
+Environment="WAYLAND_DISPLAY=wayland-0"
+Environment="MIR_SERVER_WAYLAND_HOST=wayland-0"
+Environment="XDG_RUNTIME_DIR=/run/user/32011"
+ExecStartPre=/usr/bin/mkdir -p /run/user/32011
+ExecStartPre=/usr/bin/chown phablet:phablet /run/user/32011
+# miral-app initialized connecting Wayland rendering to Android Graphics Stack
+ExecStart=/usr/bin/miral-app -kiosk
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=graphical.target

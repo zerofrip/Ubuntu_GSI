@@ -1,0 +1,51 @@
+# =============================================================================
+# init (UMLA Treble GSI Bootstrap)
+# =============================================================================
+# This serves merely as a bootstrap boundary in the actual GSI system image.
+# Once executed by Android's init process, it prepares `/data` and executes
+# the `ubuntu_bootstrap.sh` pipeline to pivot the living filesystem.
+# =============================================================================
+
+import /init.environ.rc
+import /system/etc/init/hw/init.rc
+
+on early-init
+    # Establish vital IPC boundaries for Vendor HAL interaction post-pivot
+    mkdir /dev/binderfs 0755 root root
+    mount binder binder /dev/binderfs stats=global
+    symlink /dev/binderfs/binder /dev/binder
+    symlink /dev/binderfs/vndbinder /dev/vndbinder
+    symlink /dev/binderfs/hwbinder /dev/hwbinder
+    chmod 0666 /dev/binder
+    chmod 0666 /dev/vndbinder
+    chmod 0666 /dev/hwbinder
+
+on init
+    # Configure required overlay and local mount definitions
+    mkdir /overlay 0755 root root
+    mount overlay overlay /overlay
+    
+    # Mount Android's encrypted data partition where the Ubuntu payload resides
+    mkdir /data 0771 system system
+    mount_all /vendor/etc/fstab.${ro.hardware}
+
+on fs
+    # Standard mappings
+    mount none /vendor /vendor bind
+    mount none /system /system bind
+
+on post-fs-data
+    # Defer immediate rendering/loading to the dedicated bootstrap bash script
+    start umla_bootstrapper
+
+# =============================================================================
+# PRIMARY BOOTSTRAPPER TRIGGER
+# =============================================================================
+
+service umla_bootstrapper /system/bootstrap/ubuntu_bootstrap.sh
+    class core
+    user root
+    group root
+    critical
+    # Execute with maximum bounds to allow for root filesystem pivoting
+    seclabel u:r:su:s0

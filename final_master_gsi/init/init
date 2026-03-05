@@ -1,0 +1,37 @@
+#!/bin/sh
+# =============================================================================
+# /init (Final Master Custom GNU/Linux Bootstrap)
+# =============================================================================
+
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+echo "[Master Init] Stage 1 - Base Virtual Filesystems..."
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -t devpts devpts /dev/pts
+
+echo "[Master Init] Stage 2 - Android Ext4 Vendor Mounting..."
+mkdir -p /vendor
+mount -t ext4 -o ro /dev/block/bootdevice/by-name/vendor /vendor 2>/dev/null || \
+    mount -t ext4 -o ro /dev/block/mapper/vendor /vendor
+
+echo "[Master Init] Stage 3 - BinderFS IPC Activation..."
+mkdir -p /dev/binderfs
+mount -t binder binder /dev/binderfs
+symlink /dev/binderfs/binder /dev/binder
+symlink /dev/binderfs/vndbinder /dev/vndbinder
+symlink /dev/binderfs/hwbinder /dev/hwbinder
+chmod 0666 /dev/binder /dev/vndbinder /dev/hwbinder
+
+echo "[Master Init] Stage 4 - Active Hardware Discovery..."
+chmod +x /scripts/*.sh
+/scripts/detect-gpu.sh
+/scripts/detect-vendor-services.sh
+
+echo "[Master Init] Stage 5 - Virtual HAL Framework Preparations..."
+mkdir -p /dev/uhl
+chmod 0755 /dev/uhl
+
+echo "[Master Init] Stage 6 - Handing Control to OverlayFS Pivot..."
+exec /init/mount.sh

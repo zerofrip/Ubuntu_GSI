@@ -1,0 +1,20 @@
+[Unit]
+Description=Lomiri Desktop Shell
+After=mir.service
+Requires=mir.service
+
+[Service]
+Type=simple
+User=phablet
+Group=video
+Environment="WAYLAND_DISPLAY=wayland-0"
+Environment="QT_QPA_PLATFORM=wayland"
+Environment="XDG_RUNTIME_DIR=/run/user/32011"
+# Ensure the session knows it's a mobile interface natively
+Environment="LOMIRI_FORM_FACTOR=phone"
+ExecStart=/usr/bin/lomiri
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=graphical.target

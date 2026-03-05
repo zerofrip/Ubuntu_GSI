@@ -1,0 +1,38 @@
+#!/bin/sh
+# =============================================================================
+# /init (UMLA Standalone Treble GSI)
+# =============================================================================
+# Custom Minimal Init Script explicitly dodging Android framework invocation.
+# Establishes hardware nodes, BinderFS, extracts vendor paths, and delegates
+# the OS payload explicitly to a dynamically generated OverlayFS Ubuntu mount.
+# =============================================================================
+
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+echo "[UMLA Init] Bootstrapping Custom Minimal Linux Init Phase..."
+
+# 1. Mount explicit Virtual Filesystems
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -t devpts devpts /dev/pts
+
+# 2. Extract Device Hardware mappings (Vendor)
+mkdir -p /vendor
+# Rely on kernel detecting fstab natively or generic treble mapping
+mount -t ext4 -o ro /dev/block/bootdevice/by-name/vendor /vendor 2>/dev/null || \
+    mount -t ext4 -o ro /dev/block/mapper/vendor /vendor
+
+# 3. Mount mandatory Android IPC abstractions (BinderFS)
+echo "[UMLA Init] Initializing Universal HAL Binders (BinderFS)..."
+mkdir -p /dev/binderfs
+mount -t binder binder /dev/binderfs
+symlink /dev/binderfs/binder /dev/binder
+symlink /dev/binderfs/vndbinder /dev/vndbinder
+symlink /dev/binderfs/hwbinder /dev/hwbinder
+
+chmod 0666 /dev/binder /dev/vndbinder /dev/hwbinder
+
+# 4. Synthesize Dynamic RootFS (OverlayFS)
+echo "[UMLA Init] Transferring configuration to OS Payload Mount wrapper..."
+exec /init/mount.sh

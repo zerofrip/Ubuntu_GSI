@@ -23,7 +23,7 @@ lxc.arch = aarch64
 # Lower layer: read-only Ubuntu base rootfs
 # Upper layer: writable overlay for apt/user changes
 # This allows apt upgrades without reflashing the system partition
-lxc.rootfs.path = overlay:lowerdir=/data/ubuntu/rootfs:upperdir=/data/ubuntu/overlay:workdir=/data/ubuntu/workdir
+lxc.rootfs.path = overlay:lowerdir=/system/ubuntu-rootfs:upperdir=/data/ubuntu/overlay:workdir=/data/ubuntu/workdir
 lxc.rootfs.options = nosuid,nodev
 
 # ---- Init ----
@@ -60,6 +60,13 @@ lxc.mount.entry = /dev/random dev/random none bind,create=file 0 0
 # tmpfs for /run and /tmp inside container
 lxc.mount.entry = tmpfs run tmpfs rw,nosuid,nodev,mode=0755 0 0
 lxc.mount.entry = tmpfs tmp tmpfs rw,nosuid,nodev 0 0
+
+# Bind mount /dev/dri and /dev/input for native Mir execution
+lxc.mount.entry = /dev/dri dev/dri none bind,optional,create=dir 0 0
+lxc.mount.entry = /dev/input dev/input none bind,optional,create=dir 0 0
+
+# Bind mount start-lomiri script to rootfs
+lxc.mount.entry = /system/bin/start-lomiri start-lomiri none bind,ro,create=file 0 0
 
 # Shared memory for systemd
 lxc.mount.entry = tmpfs dev/shm tmpfs rw,nosuid,nodev,noexec,mode=1777,size=65536k 0 0
@@ -139,6 +146,12 @@ lxc.cgroup2.devices.allow = c 5:2 rwm
 
 # /dev/tty
 lxc.cgroup2.devices.allow = c 5:0 rwm
+
+# Graphics & Input Devices
+# /dev/dri (char 226:*)
+lxc.cgroup2.devices.allow = c 226:* rwm
+# /dev/input (char 13:*)
+lxc.cgroup2.devices.allow = c 13:* rwm
 
 # ---- Console ----
 lxc.console.size = auto

@@ -105,12 +105,7 @@ service logd /system/bin/logd
 # ---- Ubuntu LXC container ----
 # This launches the Ubuntu container with LXC.
 # systemd runs as PID 1 INSIDE the container.
-service ubuntu-container /system/bin/lxc-start \
-    -n ubuntu \
-    -f /system/etc/lxc/ubuntu/config \
-    -o /data/lxc/ubuntu/lxc.log \
-    -l INFO \
-    -F
+service ubuntu-container /system/bin/start-ubuntu-container
     class late_start
     user root
     group root

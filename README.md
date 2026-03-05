@@ -1,6 +1,6 @@
-# Ubuntu GSI — Treble-Compliant Android with Ubuntu LXC Container
+# Ubuntu GSI — Treble-Compliant Android with Ubuntu Touch LXC Container
 
-A minimal Android Generic System Image (GSI) that boots Ubuntu Linux inside an LXC container on arm64 A/B dynamic partition devices, using binder-only AIDL IPC with strong security isolation.
+A minimal Android Generic System Image (GSI) that boots Ubuntu Touch (Lomiri) inside an LXC container on arm64 A/B dynamic partition devices, using binder-only AIDL IPC with strong security isolation.
 
 ---
 
@@ -14,10 +14,11 @@ graph TB
         LOGD["logd"]
     end
 
-    subgraph CONTAINER["Ubuntu LXC Container"]
-        SYSTEMD["systemd\n(container PID 1)"]
-        BB["binder-bridge"]
-        UBUNTU["Ubuntu userspace\n(apt, ssh, dbus, ...)"]
+    subgraph CONTAINER["Ubuntu Touch LXC Container"]
+        INIT_SHIM["/sbin/init (shim)"]
+        MIR["Mir Compositor"]
+        LOM["Lomiri Desktop UI"]
+        UBUNTU["Ubuntu Touch environment"]
     end
 
     subgraph SECURITY["Security Layers"]
@@ -29,6 +30,7 @@ graph TB
     end
 
     HOST ---|"/dev/binder"| CONTAINER
+    HOST ---|"/dev/dri & /dev/input"| CONTAINER
     SECURITY -.-> CONTAINER
 
     style HOST fill:#1a1a2e,color:#eee
@@ -43,9 +45,9 @@ graph TB
 | IPC | Binder-only (no hwbinder, no HIDL) |
 | HALs | Stable AIDL only, lazy & optional |
 | Host PID 1 | Android init (minimal stub) |
-| Container PID 1 | systemd |
-| Ubuntu rootfs | `/data/ubuntu` (OverlayFS) |
-| System partition | Read-only, ~50-80 MB |
+| Container PID 1 | Custom shell init script |
+| Ubuntu rootfs | `/system/ubuntu-rootfs` (base) + `/data/ubuntu/overlay` |
+| System partition | Read-only, ~4 GB |
 | Vendor partition | Untouched, never mounted in container |
 | Target devices | arm64, A/B, dynamic partitions |
 
@@ -55,12 +57,17 @@ graph TB
 
 ```
 Ubuntu_GSI/
+├── generate-rootfs.sh                   # Script to bootstrap Ubuntu Touch base
 ├── system/                              # System partition contents
+│   ├── ubuntu-rootfs/                   # Generated Ubuntu arm64 OS image
 │   ├── etc/
 │   │   ├── init/ubuntu-gsi.rc          # Minimal Android init config
 │   │   ├── lxc/ubuntu/config           # LXC container configuration
 │   │   ├── selinux/ubuntu_gsi.cil      # SELinux policy (CIL)
 │   │   └── seccomp/ubuntu_container.json  # Seccomp syscall filter
+│   ├── bin/
+│   │   ├── start-ubuntu-container      # Init wrapper to start LXC
+│   │   └── start-lomiri                # Internal script to start UI
 │   └── build.prop                       # Build properties
 ├── scripts/
 │   └── setup-ubuntu.sh                  # Ubuntu rootfs bootstrap
@@ -109,23 +116,15 @@ git submodule update --init --depth 1 third_party/aosp_system_sepolicy
 ### Flash and Boot
 
 ```bash
-# 1. Build GSI image
+# 1. Build GSI image (auto-generates rootfs if missing via debootstrap)
+# This will require sudo for rootfs generation
 ./build.sh
 
 # 2. Flash GSI system image
 fastboot flash system ubuntu-gsi-arm64.img
 
-# 3. Boot the device
+# 3. Boot the device (Lomiri will start automatically)
 fastboot reboot
-
-# 4. Run Ubuntu bootstrap (first boot only)
-adb shell sh /system/scripts/setup-ubuntu.sh
-
-# 5. Attach to Ubuntu
-adb shell lxc-attach -n ubuntu -- /bin/bash
-
-# 6. Inside Ubuntu — use apt normally
-apt update && apt install openssh-server
 ```
 
 ---
