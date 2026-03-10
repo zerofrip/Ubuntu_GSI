@@ -22,6 +22,7 @@ ubuntu-gsi-arm64.img
 Thumbs.db
 ubuntu-touch-rootfs.tar.gz
 builder/out/
+builder/out/userdata_staging/
 
 # Logs and QA reports
 *.log

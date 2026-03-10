@@ -29,9 +29,15 @@ cp -r "$WORKSPACE_DIR/init" "$BOOTSTRAP_DIR/"
 # The only file on the root of the Ext4 is our Linux Pivot!
 echo "[$(date -Iseconds)] [GSI Packager] Generating raw Ext4 Block..."
 
-# Replacement for: make_ext4fs -l 512M -s -a system "$OUT_IMG" "$BOOTSTRAP_DIR"
-# Step 1: Create a 512MB zero-filled file
-dd if=/dev/zero of="$OUT_IMG" bs=1M count=512
+# Source configuration for image size
+CONFIG_FILE="$(cd "$WORKSPACE_DIR/.." && pwd)/config.env"
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck source=../../config.env
+    source "$CONFIG_FILE"
+fi
+SYSTEM_IMG_SIZE_MB="${SYSTEM_IMG_SIZE_MB:-512}"
+
+dd if=/dev/zero of="$OUT_IMG" bs=1M count="$SYSTEM_IMG_SIZE_MB"
 
 # Step 2: Format as ext4 with label 'system' and populate with bootstrap contents
 # Sample command: mkfs.ext4 -L system out/system.img -d out/gsi_sys

@@ -121,6 +121,20 @@ chmod +x "$WORKSPACE_DIR/scripts/gsi-pack.sh"
 echo ""
 
 # ---------------------------------------------------------------------------
+# Phase 4: userdata.img Generation
+# ---------------------------------------------------------------------------
+info "Phase 4 — Userdata Image Generation"
+if [ -f "${SCRIPT_DIR}/scripts/build_userdata_img.sh" ]; then
+    chmod +x "${SCRIPT_DIR}/scripts/build_userdata_img.sh"
+    bash "${SCRIPT_DIR}/scripts/build_userdata_img.sh"
+else
+    warning "scripts/build_userdata_img.sh not found — skipping userdata.img"
+    warning "You will need to deliver linux_rootfs.squashfs to /data/ manually."
+fi
+
+echo ""
+
+# ---------------------------------------------------------------------------
 # Build Summary
 # ---------------------------------------------------------------------------
 BUILD_END=$(date +%s)
@@ -142,12 +156,17 @@ if [ -f "$WORKSPACE_DIR/out/linux_rootfs.squashfs" ]; then
     RIMG_SIZE=$(du -h "$WORKSPACE_DIR/out/linux_rootfs.squashfs" | cut -f1)
     echo -e "  ${CYAN}linux_rootfs.squashfs${NC}  : $RIMG_SIZE"
 fi
+if [ -f "$WORKSPACE_DIR/out/userdata.img" ]; then
+    UIMG_SIZE=$(du -h "$WORKSPACE_DIR/out/userdata.img" | cut -f1)
+    echo -e "  ${CYAN}userdata.img${NC}          : $UIMG_SIZE"
+fi
 
 echo ""
 echo -e "  Elapsed: ${BOLD}${ELAPSED_MIN}m ${ELAPSED_SEC}s${NC}"
 echo ""
-echo -e "  ${BOLD}Deploy:${NC}"
-echo -e "    fastboot flash system builder/out/system.img"
-echo -e "    adb push builder/out/linux_rootfs.squashfs /data/"
-echo -e "    ${CYAN}— or run: make install${NC}"
+echo -e "  ${BOLD}Deploy (fastboot only — no adb required):${NC}"
+echo -e "    fastboot flash system   builder/out/system.img"
+echo -e "    fastboot flash userdata builder/out/userdata.img"
+echo -e "    fastboot reboot"
+echo -e "    ${CYAN}— or run: make flash${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"

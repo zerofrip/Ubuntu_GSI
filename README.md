@@ -15,11 +15,14 @@ cd Ubuntu_GSI
 # Check build environment
 make check
 
-# Build (downloads rootfs automatically if missing)
+# Build (produces system.img + userdata.img)
 make build
 
-# Flash to device (interactive)
-make install
+# Check device compatibility (optional)
+make check-device
+
+# Flash to device via fastboot (interactive — no adb required)
+make flash
 ```
 
 ## 🚀 Key Features
@@ -36,12 +39,14 @@ make install
 
 ### 🛠️ Host-Side Tooling (`scripts/`)
 - **`scripts/check_environment.sh`**: Validates build dependencies, disk space, and submodule status.
-- **`scripts/install.sh`**: Interactive device flash helper (fastboot + ADB automation).
+- **`scripts/check_device.sh`**: Pre-flash device compatibility checker (Treble, architecture, bootloader).
+- **`scripts/flash.sh`**: Fastboot-only device flash script (no adb required).
+- **`scripts/build_userdata_img.sh`**: Builds the flashable `userdata.img` containing the rootfs.
 
 ### 🛠️ Core Build Pipeline
 - **`build.sh`**: The master build orchestrator. Sources `config.env`, runs environment check, then sequences rootfs extraction → SquashFS compilation → system.img packaging.
 - **`config.env`**: Configurable build parameters (rootfs URL, compression, image size, architecture).
-- **`Makefile`**: Convenience targets — `make build`, `make check`, `make clean`, `make install`, `make lint`.
+- **`Makefile`**: Convenience targets — `make build`, `make check`, `make flash`, `make clean`, `make lint`.
 
 ### 🛠️ Builder Components (`builder/`)
 - **`builder/scripts/rootfs-builder.sh`**: Compiles the Ubuntu rootfs into a compressed SquashFS block.
@@ -81,8 +86,8 @@ make install
 | `mkfs.ext4` | `e2fsprogs` | ✅ |
 | `jq` | `jq` | ✅ |
 | `wget` or `curl` | `wget` / `curl` | ✅ |
-| `adb` | `android-tools-adb` | For flashing |
-| `fastboot` | `android-tools-fastboot` | For flashing |
+| `fastboot` | `android-tools-fastboot` | ✅ For flashing |
+| `adb` | `android-tools-adb` | Optional (device checks) |
 | `shellcheck` | `shellcheck` | For linting |
 
 ```bash
@@ -118,13 +123,24 @@ SQUASHFS_COMP=lz4 make build
 
 ### Deploy to Device
 
-```bash
-# Interactive installer (recommended)
-make install
+> **Important:** After flashing the GSI, the device boots into Ubuntu — not Android.
+> There is no `adbd` running, so `adb push` cannot be used.
+> Both images must be flashed via **fastboot** before the first boot.
 
-# Manual deployment
-fastboot flash system builder/out/system.img
-adb push builder/out/linux_rootfs.squashfs /data/
+```bash
+# Interactive flash script (recommended)
+make flash
+
+# Manual deployment (device must be in fastboot/bootloader mode)
+fastboot flash system   builder/out/system.img
+fastboot flash userdata builder/out/userdata.img
+fastboot reboot
+```
+
+**Selective flashing:**
+```bash
+make flash-system     # Flash system.img only (preserves userdata)
+make flash-userdata   # Flash userdata.img only (preserves system)
 ```
 
 ## 📈 QA & Debugging
@@ -155,10 +171,12 @@ Snapshots are automatically purged after 3 generations to prevent storage bloat.
 | `mksquashfs: command not found` | `sudo apt install squashfs-tools` |
 | `mkfs.ext4: command not found` | `sudo apt install e2fsprogs` |
 | Build fails with permission error | Run `chmod +x build.sh scripts/*.sh` |
-| Device not detected by `make install` | Enable USB debugging, check `adb devices` |
-| System doesn't boot after flash | `adb shell touch /data/uhl_overlay/rollback && adb reboot` |
+| Device not detected by `make flash` | Ensure device is in fastboot mode (Vol Down + Power) |
+| System doesn't boot after flash | Enter fastboot mode and reflash both images |
+| `adb push` doesn't work after flash | **Expected** — Ubuntu doesn't run adbd. Use `fastboot flash userdata` instead |
 | GPU fails, black screen | System auto-falls back to LLVMpipe after 5s; check `gpu_stage.log` |
 | HAL daemons won't start | Check `daemon.log` and verify `module_manifest.json` entries |
+| `userdata.img` too small | Increase `USERDATA_IMG_SIZE_MB` in `config.env` |
 
 ## Security Model
 
