@@ -31,7 +31,7 @@ A production-grade Ubuntu Touch distribution that runs natively on Android Trebl
 
 ```bash
 # Clone
-git clone --recursive https://github.com/zerofrip/Ubuntu_GSI.git
+git clone --recursive https://github.com/zerofrip/Ubuntu_Touch_GSI.git
 cd Ubuntu_GSI
 
 # Build everything (system.img + userdata.img)
