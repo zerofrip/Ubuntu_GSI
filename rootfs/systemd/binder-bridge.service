@@ -1,0 +1,27 @@
+[Unit]
+Description=Ubuntu GSI Binder Bridge — AIDL HAL Orchestrator
+Documentation=https://github.com/zerofrip/Ubuntu_GSI
+After=local-fs.target
+Wants=local-fs.target
+ConditionPathExists=/dev/binder
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/ubuntu-gsi/binder/binder-bridge.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+
+# Security hardening
+ProtectSystem=strict
+ReadWritePaths=/data /run/ubuntu-gsi /tmp
+NoNewPrivileges=false
+PrivateTmp=yes
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=binder-bridge
+
+[Install]
+WantedBy=multi-user.target

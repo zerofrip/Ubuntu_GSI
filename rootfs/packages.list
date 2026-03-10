@@ -1,0 +1,50 @@
+# =============================================================================
+# rootfs/packages.list — Ubuntu GSI Required Packages
+# =============================================================================
+# One package per line. Lines starting with # are comments.
+# These packages are installed into the rootfs during build.
+# =============================================================================
+
+# Core system
+systemd
+systemd-sysv
+dbus
+udev
+sudo
+bash
+bash-completion
+locales
+ca-certificates
+
+# Networking
+network-manager
+iproute2
+iw
+wpasupplicant
+openssh-server
+
+# Binder / IPC support
+libbinder-dev
+
+# Audio
+pulseaudio
+
+# Sensors
+iio-sensor-proxy
+
+# Power
+upower
+
+# Utilities
+jq
+curl
+nano
+less
+htop
+
+# Display (Mir + Wayland)
+mir-graphics-drivers-desktop
+
+# Fonts (for GUI)
+fonts-ubuntu
+fonts-noto

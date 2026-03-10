@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "hal_modules": [
+    {
+      "name": "power",
+      "aidl_interface": "android.hardware.power.IPower",
+      "binary": "/system/aidl/power/power_hal.sh",
+      "critical": true,
+      "start_delay": 0,
+      "description": "Power management — battery, charging, performance profiles"
+    },
+    {
+      "name": "audio",
+      "aidl_interface": "android.hardware.audio.core.IModule",
+      "binary": "/system/aidl/audio/audio_hal.sh",
+      "critical": false,
+      "start_delay": 1,
+      "description": "Audio routing via PulseAudio/PipeWire to vendor codec"
+    },
+    {
+      "name": "camera",
+      "aidl_interface": "android.hardware.camera.provider.ICameraProvider",
+      "binary": "/system/aidl/camera/camera_hal.sh",
+      "critical": false,
+      "start_delay": 1,
+      "description": "Camera access via libcamera to vendor camera HAL"
+    },
+    {
+      "name": "sensors",
+      "aidl_interface": "android.hardware.sensors.ISensors",
+      "binary": "/system/aidl/sensors/sensors_hal.sh",
+      "critical": false,
+      "start_delay": 0,
+      "description": "Sensor data via iio-sensor-proxy to vendor sensor HAL"
+    },
+    {
+      "name": "graphics",
+      "aidl_interface": "android.hardware.graphics.composer3.IComposer",
+      "binary": "/system/aidl/graphics/graphics_hal.sh",
+      "critical": true,
+      "start_delay": 0,
+      "description": "GPU/display via Mir compositor to vendor graphics"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+[Unit]
+Description=Lomiri Desktop Shell (Ubuntu Touch)
+Documentation=https://github.com/nicofrand/lomiri
+After=binder-bridge.service graphical.target dbus.service
+Wants=binder-bridge.service dbus.service
+ConditionPathExists=/usr/bin/lomiri
+
+[Service]
+Type=simple
+User=ubuntu
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=WAYLAND_DISPLAY=wayland-0
+ExecStartPre=/usr/lib/ubuntu-gsi/gui/start_lomiri.sh --setup
+ExecStart=/usr/lib/ubuntu-gsi/gui/start_lomiri.sh
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=30
+
+[Install]
+WantedBy=graphical.target

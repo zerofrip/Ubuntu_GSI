@@ -1,0 +1,62 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          find . -name '*.sh' \
+            -not -path './third_party/*' \
+            -not -path './builder/out/*' \
+            -print0 | xargs -0 shellcheck --severity=warning
+
+  json-validate:
+    name: Validate JSON
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON files
+        run: |
+          for f in $(find . -name '*.json' -not -path './third_party/*' -not -path './.git/*'); do
+            echo "Validating: $f"
+            python3 -m json.tool "$f" > /dev/null
+          done
+          echo "All JSON files valid"
+
+  systemd-validate:
+    name: Validate Systemd Units
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check systemd unit syntax
+        run: |
+          for f in rootfs/systemd/*.service; do
+            echo "Checking: $f"
+            # Basic syntax validation
+            if ! grep -q '\[Unit\]' "$f"; then
+              echo "ERROR: Missing [Unit] section in $f"
+              exit 1
+            fi
+            if ! grep -q '\[Service\]' "$f"; then
+              echo "ERROR: Missing [Service] section in $f"
+              exit 1
+            fi
+          done
+          echo "All systemd units valid"
